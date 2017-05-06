@@ -3,6 +3,8 @@ import csv
 import json
 from datetime import date
 from collections import OrderedDict, defaultdict, Counter
+
+import re
 from openpyxl import load_workbook
 from plaid import Client
 
@@ -55,7 +57,7 @@ def query_plaid_transactions(plaid_client, start_date, end_date=None):
     if not end_date:
         end_date = date.today().strftime("%Y-%m-%d")
 
-    #TODO: build in pagination in case transactions is > 500 by using the offset param.
+    # TODO: build in pagination in case transactions is > 500 by using the offset param.
     response = plaid_client.Transactions.get(CONFIG["PLAID_ACCESS_TOKEN"],
                                              start_date,
                                              end_date,
@@ -86,9 +88,9 @@ def merge_transactions(existing_transactions, new_transactions, account_data):
         # Skip transactions already existing in Money Master.xlsx
         if transaction.get('transaction_id') in existing_transaction_ids:
             continue
-        # Skip transactions from Kara's business account
         transaction_dict = OrderedDict()
         transaction_dict.update(account_data[transaction.get('account_id')])
+        # Skip transactions from Kara's business account
         if transaction_dict.get('bank_account_number') == '7550':
             continue
         transaction_dict['date'] = transaction.get('date')
@@ -113,7 +115,19 @@ def apply_transaction_categories(transactions, category_data):
     for transaction in transactions:
         if not transaction.get('category'):
             transaction['category'] = category_data.get(transaction['description']).most_common()[0][0] if \
-                category_data.get(transaction['description']) else None
+                category_data.get(transaction['description']) else "Uncategorized"
+
+    return transactions
+
+
+def apply_category_rules(rules, transactions):
+    for rule in rules:
+        for transaction in transactions:
+            if rule.get('description') and not re.search(rule.get('description'), transaction['description'], re.I):
+                continue
+            if rule.get('amount') and not rule.get('amount') == transaction['amount']:
+                continue
+            transaction['category'] = rule['category']
 
     return transactions
 
@@ -139,5 +153,10 @@ if __name__ == '__main__':
     account_data = build_account_details(plaid_accounts)
     merged_transactions = merge_transactions(existing_transactions, plaid_transactions, account_data)
     merged_transactions = apply_transaction_categories(merged_transactions, category_data)
+
+    with open('rules.json') as f:
+        rules = json.load(f)
+
+    merged_transactions = apply_category_rules(rules, merged_transactions)
 
     save_results_to_csv(merged_transactions)
