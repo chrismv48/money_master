@@ -1,0 +1,5 @@
+.idea/
+.Bank Statements/
+.Pay Statements/
+*.
+!*.py
