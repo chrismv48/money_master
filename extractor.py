@@ -14,7 +14,7 @@ with open('config.json') as f:
 plaid_client = Client(client_id=CONFIG['PLAID_CLIENT_ID'],
                       secret=CONFIG['PLAID_SECRET_ID'],
                       public_key=CONFIG['PLAID_PUBLIC_KEY'],
-                      environment="development",
+                      environment="development"
                       )
 
 
@@ -87,6 +87,8 @@ def merge_transactions(existing_transactions, new_transactions, account_data):
     for transaction in new_transactions:
         # Skip transactions already existing in Money Master.xlsx
         if transaction.get('transaction_id') in existing_transaction_ids:
+            continue
+        if transaction.get('pending'):
             continue
         transaction_dict = OrderedDict()
         transaction_dict.update(account_data[transaction.get('account_id')])
